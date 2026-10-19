@@ -1,4 +1,6 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Tastenfall"></head><body>
 <title>Tastenfall</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,7 +35,7 @@ html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;overflow:hidden;
   background-image:radial-gradient(900px 500px at 85% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(700px 420px at -10% 110%,rgba(62,230,196,.12),transparent 60%);background-attachment:fixed}
 button{font-family:inherit}
-.screen{height:100%;box-sizing:border-box;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:12px}
+.screen{height:100%;height:100dvh;box-sizing:border-box;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-top:max(12px, env(safe-area-inset-top, 0px));padding-bottom:max(12px, env(safe-area-inset-bottom, 0px))}
 :is(button,select,label.btn):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
@@ -52,7 +54,7 @@ button{font-family:inherit}
 
 /* ---------- Bibliothek ---------- */
 #lib{overflow-y:auto}
-.lib-in{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:22px;padding-bottom:24px}
+.lib-in{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:22px;padding-bottom:24px}
 .lib-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .hero{display:flex;flex-direction:column;gap:10px}
 .hero h1{font-family:var(--font-display);font-weight:700;font-size:clamp(24px,4.4vw,40px);line-height:1.12;letter-spacing:-.02em;margin:0;text-wrap:balance}
@@ -84,6 +86,8 @@ button{font-family:inherit}
 
 /* ---------- Spieler ---------- */
 #player{display:flex;flex-direction:column;gap:10px}
+/* Beim Spielen bekommen Noten und Tasten den ganzen Platz; in der Pause sind die Einstellungen wieder da */
+#player.playing .strip{display:none}
 .ptop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .ptitle{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:3px}
 .ptitle h2{margin:0;font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -298,7 +302,8 @@ let parts=[];
 
 /* ---------- Ton ---------- */
 let ac=null, master=null, wave=null, voices=[];
-try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}   // iPhone: Ton auch bei Stummschalter
+// Nur iPhone/iPad: Ton auch bei Stummschalter. Auf dem Mac stört die Einstellung Safari.
+try{ if(navigator.audioSession&&navigator.maxTouchPoints>1) navigator.audioSession.type='playback'; }catch(e){}
 function createAudio(){
   ac=new (window.AudioContext||window.webkitAudioContext)();
   const comp=ac.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4;
@@ -309,26 +314,46 @@ function createAudio(){
   voices=[];
 }
 // Der Browser schaltet den Ton nach Ruhe, Bildschirmsperre oder Tab-Wechsel ab
-// ("suspended" oder auf iPad/iPhone "interrupted"). Hier wird er wieder geweckt;
-// klappt das nicht, wird die Ton-Engine neu gebaut.
-function ensureAudio(){
-  if(!ac||ac.state==='closed'){ createAudio(); return; }
-  if(ac.state==='running') return;
-  const old=ac;
-  old.resume().catch(()=>{});
-  setTimeout(()=>{
-    if(ac!==old||old.state==='running') return;
-    try{ old.close(); }catch(e){}
-    if(mic){ mic.stream.getTracks().forEach(t=>t.stop()); mic=null; setMicUI(); }
-    held.clear(); createAudio();
-    if(playing&&song) resyncFrom(pos);
-  },400);
+// ("suspended" oder auf iPad/iPhone "interrupted"). Safari lässt den Ton nur
+// direkt in einem Tipp, Klick oder Tastendruck wieder an. Deshalb wird hier nur
+// in solchen Momenten geweckt oder, wenn Wecken nicht geklappt hat, neu gebaut.
+let audioStuck=false, lastCT=-1, lastCTat=0;
+function rebuildAudio(){
+  try{ ac.close(); }catch(e){}
+  if(mic){ mic.stream.getTracks().forEach(t=>t.stop()); mic=null; setMicUI(); }
+  held.clear(); createAudio();
+  if(playing&&song) resyncFrom(pos);
 }
-const wake=()=>{ if(ac&&ac.state!=='running') ensureAudio(); };
+// Ein unhörbar kurzer Ton: Safari gibt die Ausgabe oft erst danach wirklich frei
+function unlockAudio(){
+  try{ const s=ac.createBufferSource(); s.buffer=ac.createBuffer(1,1,22050); s.connect(ac.destination); s.start(0); }catch(e){}
+}
+function ensureAudio(){
+  if(!ac||ac.state==='closed') createAudio();
+  else if(audioStuck){ audioStuck=false; rebuildAudio(); if(!$('notice').hidden&&$('noticeText').textContent===STUCK_MSG) hideNotice(); }
+  if(ac.state==='running') return;
+  const cur=ac;
+  cur.resume().catch(()=>{});
+  unlockAudio();
+  setTimeout(()=>{ if(ac===cur&&cur.state!=='running') audioStuck=true; },600);
+}
+const STUCK_MSG='Der Ton war eingeschlafen. Tippe einmal irgendwohin, dann ist er wieder da.';
+// Manchmal meldet Safari "läuft", die Audio-Uhr steht aber still: dann kommt kein Ton.
+function watchAudio(){
+  const now=performance.now();
+  if(!ac||ac.state!=='running'||document.hidden){ lastCTat=now; return; }
+  if(ac.currentTime!==lastCT){ lastCT=ac.currentTime; lastCTat=now; return; }
+  if(now-lastCTat>1500&&!audioStuck){
+    audioStuck=true;
+    if(!$('player').hidden) notice(STUCK_MSG);
+  }
+}
+const wake=()=>{ if(ac&&(ac.state!=='running'||audioStuck)) ensureAudio(); };
 ['pointerdown','keydown','touchend'].forEach(t=>addEventListener(t,wake,{capture:true,passive:true}));
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden) wake(); });
-addEventListener('pageshow',wake);
-addEventListener('focus',wake);
+// Beim Zurückkommen zum Tab nur sanft wecken (Chrome erlaubt das), nichts neu bauen
+const softWake=()=>{ if(ac&&ac.state!=='running'&&ac.state!=='closed') ac.resume().catch(()=>{}); };
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) softWake(); });
+addEventListener('pageshow',softWake);
 function voice(m,when,dur,vel){
   const f=freq(m);
   const o=ac.createOscillator(); o.setPeriodicWave(wave); o.frequency.value=f;
@@ -484,24 +509,26 @@ const dsA=[[69,1],[69,.5],[69,.5],[69,1],[69,.5],[69,.5],[69,1],[62,1],[65,1],[6
            [69,1],[69,.5],[69,.5],[69,1],[69,.5],[69,.5],[69,1],[71,1],[72,1],[74,1],[72,1],[69,1],[67,1],[64,1],[62,2],[62,2]];
 const DSd=[50,57];
 const dsL=[[DSd,4],[DSd,4],[C,4],[C,4],[DSd,4],[DSd,4],[C,4],[DSd,4]];
-// Bella Ciao (a-Moll, 2/4): Gesang setzt nach einer Achtelpause ein,
-// die betonte Silbe (mat-TI-na, sve-GLIA-to) steht auf der Eins.
+// Bella Ciao (a-Moll, 2/4): jede Zeile beginnt nach einer Achtelpause mit
+// drei Achteln Anlauf, die betonte Silbe (mat-TI-na, sve-GLIA-to) steht auf der Eins.
 const bcA=[
-  [0,.5],[64,.5],[69,.5],[71,.5], [72,.5],[69,1],[0,.5],     // (u-na mat) TI-na
-  [0,.5],[64,.5],[69,.5],[71,.5], [72,.5],[69,1],[0,.5],     // (mi son sve) GLIA-to
+  [0,.5],[64,.5],[69,.5],[71,.5], [72,.5],[69,1.5],          // u-na mat-TI-na
+  [0,.5],[64,.5],[69,.5],[71,.5], [72,.5],[69,1.5],          // mi son sve-GLIA-to
   [0,.5],[64,.5],[69,.5],[71,.5],                            // o bel-la
-  [72,.5],[0,.5],[71,.5],[69,.5],                            // CIAO, bel-la
-  [72,.5],[0,.5],[71,.5],[69,.5],                            // CIAO, bel-la
-  [76,.5],[0,.5],[76,.5],[0,.5],                             // CIAO, CIAO,
-  [76,.5],[76,.5],[74,.5],[76,.5],                           // CIAO, (u-na mat)
-  [77,.5],[77,1],[0,.5],                                     // TI-na
-  [0,.5],[77,.5],[76,.5],[74,.5], [77,.5],[76,1],[0,.5],     // (mi son sve) GLIA-to
-  [0,.5],[76,.5],[74,.5],[72,.5], [71,.5],[76,1],[0,.5],     // (e ho tro) VA-to
-  [0,1],[71,.5],[72,.5], [69,2]];                            // l'in-va SOR
+  [72,1],[71,.5],[69,.5],                                    // CIAO, bel-la
+  [72,1],[71,.5],[69,.5],                                    // CIAO, bel-la
+  [76,1],[76,1],                                             // CIAO, CIAO,
+  [76,.5],[76,.5],[74,.5],[76,.5],                           // CIAO, u-na mat-
+  [77,.5],[77,1.5],                                          // TI-na
+  [0,.5],[77,.5],[76,.5],[74,.5], [77,.5],[76,1.5],          // mi son sve-GLIA-to
+  [0,.5],[76,.5],[74,.5],[72,.5],                            // e ho tro-
+  [71,1],[76,1],                                             // VA-to
+  [72,1],[71,1],                                             // l'in-va-
+  [69,2]];                                                   // SOR
 // Begleitung als Marsch: Bass auf 1, Akkord auf 2
 const om=(b,c)=>[[b,1],[c,1]];
 const bAm=om(45,[52,57,60]), bDm=om(38,[50,53,57]), bE=om(40,[52,56,59]);
-const bcL=[...rep(bAm,9),...bDm,...bDm,[38,1],[[52,57,60],1],...bAm,...bE,...bE,...bAm];
+const bcL=[...rep(bAm,9),...bDm,...bDm,...bAm,...bAm,...bE,...bE,[[45,52,57],2]];
 // Korobeiniki
 const kbA=[[76,1],[71,.5],[72,.5],[74,1],[72,.5],[71,.5],[69,1],[69,.5],[72,.5],[76,1],[74,.5],[72,.5],[71,1.5],[72,.5],[74,1],[76,1],[72,1],[69,1],[69,1],[0,1]];
 const kbB=[[0,.5],[74,1],[77,.5],[81,1],[79,.5],[77,.5],[76,1.5],[72,.5],[76,1],[74,.5],[72,.5],[71,1],[71,.5],[72,.5],[74,1],[76,1],[72,1],[69,1],[69,1],[0,1]];
@@ -545,8 +572,8 @@ const SONGS=[
     LH([[C,4],[C,4],[C,4],[C,4],[F,4],[C,4],[G,4],[G,4],[C,4],[C,4],[C,4],[C,4],[F,4],[C,4],[G,4],[C,4]])])},
   {name:'When the Saints Go Marching In',origin:'Spiritual aus den USA',level:2,hint:'Pausen und lange Töne',build:()=>fromSpec(112,[
     RH([[60,1],[64,1],[65,1],[67,4],[0,1],[60,1],[64,1],[65,1],[67,4],[0,1],[60,1],[64,1],[65,1],[67,2],[64,2],[60,2],[64,2],[62,4],[0,1],
-        [64,1],[64,1],[62,1],[60,3],[60,1],[64,2],[67,2],[67,1],[65,3],[64,1],[65,1],[67,2],[64,2],[60,2],[62,2],[60,4]]),
-    LH([[0,3],...rep([[C,4]],6),[G,4],[G,4],[C,4],[C,4],[F,4],[C,4],[C,4],[G,2],[C,4]])],{pickup:3})},
+        [64,1],[64,1],[62,1],[60,3],[60,1],[64,2],[67,2],[67,1],[65,3],[0,2],[64,1],[65,1],[67,2],[64,2],[60,2],[62,2],[60,4]]),
+    LH([[0,3],...rep([[C,4]],6),[G,4],[G,4],[C,4],[C,4],[F,4],[F,4],[C,4],[G,4],[C,4]])],{pickup:3})},
   {name:'Menuett in G',origin:'Christian Petzold · aus Bachs Notenbüchlein',level:3,hint:'Achtel und Sprünge, beide Hände',build:()=>fromSpec(108,[
     RH([...meA,[66,1],[67,.5],[69,.5],[71,.5],[67,.5],[69,3],...meA,[69,1],[71,.5],[69,.5],[67,.5],[66,.5],[67,3]]),
     LH([...meL,[62,3],[50,3],...meL,[50,3],[43,3]])],{meter:3})},
@@ -782,6 +809,7 @@ function play(){
 function stopPlayback(){ playing=false; waiting=false; stopScheduled(); setPlayUI(); }
 function setPlayUI(){
   $('play').setAttribute('aria-label',playing?'Pause':'Start');
+  $('player').classList.toggle('playing',playing);
   $('playIcon').innerHTML=playing?'<path d="M3.5 2h3.5v12H3.5zM9 2h3.5v12H9z"/>':'<path d="M4.5 2.5l9 5.5-9 5.5z"/>';
 }
 function schedule(){
@@ -803,6 +831,7 @@ function checkWait(){
   if(!needed.length){ chordIdx++; waiting=false; startOffset=pos; startCtx=ac.currentTime; }
 }
 function tick(){
+  watchAudio();
   if(mic) analyzeMic();
   if(song&&playing&&!waiting){
     pos=startOffset+(ac.currentTime-startCtx)*speed;
@@ -1101,7 +1130,7 @@ function layout(){
     if(!isBlack(m)){ keys[m]={x:wi*ww,w:ww,black:false}; wi++; }
     else { const bw=ww*0.6; keys[m]={x:wi*ww-bw/2,w:bw,black:true}; }
   }
-  kh=Math.min(H*0.3,Math.max(70,ww*4.6));
+  kh=Math.min(H*0.36,Math.max(70,ww*6));
   fallH=H-kh;
 }
 new ResizeObserver(layout).observe(stage);
