@@ -86,8 +86,6 @@ button{font-family:inherit}
 
 /* ---------- Spieler ---------- */
 #player{display:flex;flex-direction:column;gap:10px}
-/* Beim Spielen bekommen Noten und Tasten den ganzen Platz; in der Pause sind die Einstellungen wieder da */
-#player.playing .strip{display:none}
 .ptop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .ptitle{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:3px}
 .ptitle h2{margin:0;font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -144,6 +142,36 @@ input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
 .score b{font-family:var(--font-display);font-weight:700;font-size:15px}
 .score .ok b{color:var(--good)} .score .no b{color:var(--bad)}
 
+/* Kopfzeile kompakt: alle Einstellungen in einer Zeile neben dem Titel */
+.ptop{flex-wrap:nowrap;gap:8px}
+.ptitle{flex:1 1 80px;min-width:60px;gap:1px}
+.ptitle h2{font-size:16px}
+.ptitle .lvl{font-size:11.5px}
+.round.sm{width:40px;height:40px}
+.round.sm b{font:700 16px var(--font-display)}
+.strip{flex:none;flex-wrap:nowrap;gap:6px;align-items:center;padding:0;border:0;background:none}
+.strip .row{flex-wrap:nowrap;gap:6px}
+.ptop .seg button{font-size:13px;padding:0 10px;min-height:32px}
+.ptop .seg.who button{min-height:32px;padding:0 11px;gap:6px}
+.ptop .switch{min-height:38px;padding:0 12px 0 4px;gap:7px;font-size:13px;white-space:nowrap}
+.ptop .switch .track{width:34px;height:24px}
+.ptop .switch .track::after{top:3px;left:3px;width:18px;height:18px}
+.ptop .switch[aria-pressed="true"] .track::after{transform:translateX(10px)}
+.ptop .micbtn{min-height:38px;padding:0 12px;font-size:13px;white-space:nowrap}
+.ptop .mico{width:16px;height:16px;flex:none}
+.ptop .bpm{min-height:0;padding:0;border:0;background:none;font-size:13px;color:inherit;gap:3px}
+.ptop .bpm b{margin:0 3px 0 0}
+.ptop select{min-height:38px;font-size:13px;padding:0 32px 0 12px}
+/* Schmalere Bildschirme (iPad hochkant): Einstellungen rutschen in eine zweite Zeile */
+@media (max-width:1080px){
+  .ptop{flex-wrap:wrap;row-gap:8px}
+  .strip{order:3;flex:1 1 100%;flex-wrap:wrap;justify-content:flex-start}
+  .ptop .seg button,.ptop .seg.who button{padding:0 8px}
+  .ptop .switch{padding-right:10px}
+  #micLbl,.ptop .bpm{display:none}
+  .ptop .micbtn{padding:0 11px}
+}
+
 /* ---------- Hilfe ---------- */
 .help{position:fixed;inset:0;z-index:20;background:rgba(6,5,16,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));overflow:auto}
 .hcard{background:var(--bg-2);border:1px solid var(--border);border-radius:22px;padding:24px;max-width:560px;width:100%;box-sizing:border-box;max-height:100%;overflow:auto}
@@ -191,42 +219,23 @@ kbd{font-family:var(--font-body);font-size:12px;border:1px solid var(--border);b
 </section>
 
 <section class="screen" id="player" hidden>
+  <!-- Eine Kopfzeile: zurück, Titel, alle Einstellungen, Hilfe. Bleibt beim Spielen sichtbar. -->
   <div class="ptop">
-    <button class="btn" id="back"><svg viewBox="0 0 16 16"><path d="M10.5 2L4.5 8l6 6 1.4-1.4L7.3 8l4.6-4.6z"/></svg>Alle Lieder</button>
+    <button class="round sm" id="back" aria-label="Alle Lieder" title="Alle Lieder"><svg viewBox="0 0 16 16"><path d="M10.5 2L4.5 8l6 6 1.4-1.4L7.3 8l4.6-4.6z"/></svg></button>
     <div class="ptitle"><h2 id="pName"></h2><span id="pLevel"></span></div>
-    <button class="btn" id="helpBtn2">So geht's</button>
-  </div>
-
-  <div class="strip">
-    <div class="group">
-      <span class="lbl">Was spielst du?</span>
-      <div class="row" id="hands"></div>
-    </div>
-    <div class="group">
-      <span class="lbl">Tempo</span>
-      <div class="seg" id="tempo">
+    <div class="strip">
+      <div class="row" id="hands" title="Was spielst du?"></div>
+      <div class="seg" id="tempo" role="group" aria-label="Tempo" title="Tempo">
         <button data-v="50" aria-pressed="false">Langsam</button>
         <button data-v="75" aria-pressed="false">Mittel</button>
         <button data-v="100" aria-pressed="true">Normal</button>
       </div>
-    </div>
-    <div class="group">
-      <span class="lbl">Lied wartet auf mich</span>
-      <button class="switch" id="wait" aria-pressed="false"><span class="track"></span><span id="waitLbl">Aus</span></button>
-    </div>
-    <div class="group">
-      <span class="lbl">Metronom</span>
+      <button class="switch" id="wait" aria-pressed="false" aria-label="Lied wartet auf mich" title="Lied wartet auf mich"><span class="track"></span>Warten</button>
+      <button class="switch" id="metro" aria-pressed="false" aria-label="Metronom" title="Metronom"><span class="track"></span><svg class="mico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5h4l2.8 13H3.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 11.5l3.5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="bpm" id="bpm"></span></button>
       <div class="row">
-        <button class="switch" id="metro" aria-pressed="false"><span class="track"></span><span id="metroLbl">Aus</span></button>
-        <span class="bpm" id="bpm"></span>
-      </div>
-    </div>
-    <div class="group">
-      <span class="lbl">Echtes Klavier</span>
-      <div class="row">
-        <button class="micbtn" id="mic" aria-pressed="false">
+        <button class="micbtn" id="mic" aria-pressed="false" title="Die App hört dein echtes Klavier">
           <svg viewBox="0 0 16 16"><path d="M8 1a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-5 0v-4A2.5 2.5 0 018 1zm-4.5 6.5h1.5a3 3 0 006 0h1.5a4.5 4.5 0 01-3.75 4.44V14h2v1.5h-5.5V14h2v-2.06A4.5 4.5 0 013.5 7.5z"/></svg>
-          <span id="micLbl">App hört zu</span><span class="meter"><i id="meter"></i></span>
+          <span id="micLbl">Mikrofon</span><span class="meter"><i id="meter"></i></span>
         </button>
         <select id="sens" aria-label="Wie gut soll die App hören?" hidden>
           <option value="1.6">Raum ist laut</option>
@@ -235,6 +244,7 @@ kbd{font-family:var(--font-body);font-size:12px;border:1px solid var(--border);b
         </select>
       </div>
     </div>
+    <button class="round sm" id="helpBtn2" aria-label="So geht's" title="So geht's"><b>?</b></button>
   </div>
 
   <div class="notice" id="notice" role="status" hidden><p id="noticeText"></p><button id="noticeX" aria-label="Hinweis schließen">OK</button></div>
@@ -265,12 +275,12 @@ kbd{font-family:var(--font-body);font-size:12px;border:1px solid var(--border);b
     <h2 id="helpTitle">So geht's</h2>
     <ol>
       <li><div><b>Lied aussuchen</b><span>Tippe auf ein Lied. Die Farbe zeigt, wie schwer es ist: grün ist leicht, orange ist mittel, rot ist schwer.</span></div></li>
-      <li><div><b>Erst zuhören, dann mitspielen</b><span>Am Anfang spielt die App das ganze Lied vor. Unter „Was spielst du?“ wählst du dann <strong>Linke Hand</strong>, <strong>Rechte Hand</strong> oder <strong>Beide Hände</strong>. Den Rest spielt die App.</span></div></li>
+      <li><div><b>Erst zuhören, dann mitspielen</b><span>Am Anfang spielt die App das ganze Lied vor. Oben wählst du dann <strong>Links</strong>, <strong>Rechts</strong> oder <strong>Beide</strong>. Den Rest spielt die App.</span></div></li>
       <li><div><b>Start drücken</b><span>Die Balken fallen nach unten. Berührt ein Balken die gelbe Linie, drückst du die Taste darunter.</span></div></li>
-      <li><div><b>Spielen</b><span>Auf dem Bildschirm, mit der Computer-Tastatur (<kbd>A</kbd> bis <kbd>K</kbd>), mit einem Keyboard am Kabel oder am echten Klavier. Für das echte Klavier drückst du „App hört zu“.</span></div></li>
+      <li><div><b>Spielen</b><span>Auf dem Bildschirm, mit der Computer-Tastatur (<kbd>A</kbd> bis <kbd>K</kbd>), mit einem Keyboard am Kabel oder am echten Klavier. Für das echte Klavier drückst du „Mikrofon“.</span></div></li>
       <li><div><b>Metronom</b><span>Schalte das Metronom an (oder drück <kbd>M</kbd>). Es klickt im Takt. Der erste Schlag im Takt klingt höher. Vor dem Lied zählt es ein.</span></div></li>
     </ol>
-    <p class="tip">Tipp: Fang <b>langsam</b> an. Schalte „Lied wartet auf mich“ an. Dann stoppt das Lied, bis du die richtige Taste drückst.</p>
+    <p class="tip">Tipp: Fang <b>langsam</b> an. Schalte „Warten“ an. Dann stoppt das Lied, bis du die richtige Taste drückst.</p>
     <div class="end"><button class="btn primary" id="helpClose">Los geht's</button></div>
   </div>
 </div>
@@ -716,18 +726,19 @@ function renderHands(){
   const box=$('hands'); box.innerHTML='';
   const avg=gr=>gr.notes.reduce((s,x)=>s+x.midi,0)/gr.notes.length;
   const lr=[...song.groups].sort((a,b)=>avg(a)-avg(b));
-  const opts=[{label:'Nur zuhören',sel:[]}];
+  const short={'Linke Hand':'Links','Rechte Hand':'Rechts'};
+  const opts=[{label:'Zuhören',full:'Nur zuhören',sel:[]}];
   if(lr.length===1) opts.push({label:'Mitspielen',sel:lr});
   else {
-    lr.forEach(gr=>opts.push({label:gr.name,sel:[gr]}));
-    opts.push({label:lr.length===2?'Beide Hände':'Alle Stimmen',sel:lr});
+    lr.forEach(gr=>opts.push({label:short[gr.name]||gr.name,full:gr.name,sel:[gr]}));
+    opts.push({label:lr.length===2?'Beide':'Alle',full:lr.length===2?'Beide Hände':'Alle Stimmen',sel:lr});
   }
   const seg=document.createElement('div'); seg.className='seg who'; seg.setAttribute('role','group'); seg.setAttribute('aria-label','Was spielst du?');
   const btns=opts.map((o,i)=>{
     const b=document.createElement('button'); b.id='who'+i;
     if(o.sel.length) for(const gr of o.sel){ const d=document.createElement('span'); d.className='dot'; d.style.background=gr.color; b.appendChild(d); }
     else { b.insertAdjacentHTML('beforeend','<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5a5 5 0 0110 0V13a1.5 1.5 0 01-1.5 1.5H10.5v-5H12a4 4 0 00-8 0h1.5v5H4.5A1.5 1.5 0 013 13z"/></svg>'); }
-    b.appendChild(document.createTextNode(o.label));
+    b.appendChild(document.createTextNode(o.label)); if(o.full) b.title=o.full;
     b.onclick=()=>{
       song.groups.forEach(gr=>gr.mode=o.sel.includes(gr)?'you':'app');
       btns.forEach(x=>x.setAttribute('aria-pressed',x===b));
@@ -777,10 +788,10 @@ function updBpm(){
   const sym=song.unit===.5?'♪':song.unit===1.5?'♩.':song.unit===2?'𝅗𝅥':'♩';
   const den=song.unit===.5||song.unit===1.5?8:song.unit===2?2:4;
   const top=song.unit===1.5?song.meter*3:song.meter;
-  $('bpm').innerHTML=`${sym} =<b>${Math.round(song.bpm/song.unit*speed)}</b>· ${top}/${den}`;
+  $('bpm').innerHTML=`${sym}<b>${Math.round(song.bpm/song.unit*speed)}</b>${top}/${den}`;
 }
 function setMetroUI(){
-  $('metro').setAttribute('aria-pressed',metro); $('metroLbl').textContent=metro?'An':'Aus';
+  $('metro').setAttribute('aria-pressed',metro);
 }
 function toggleMetro(){
   metro=!metro; setMetroUI();
@@ -809,7 +820,6 @@ function play(){
 function stopPlayback(){ playing=false; waiting=false; stopScheduled(); setPlayUI(); }
 function setPlayUI(){
   $('play').setAttribute('aria-label',playing?'Pause':'Start');
-  $('player').classList.toggle('playing',playing);
   $('playIcon').innerHTML=playing?'<path d="M3.5 2h3.5v12H3.5zM9 2h3.5v12H9z"/>':'<path d="M4.5 2.5l9 5.5-9 5.5z"/>';
 }
 function schedule(){
@@ -956,7 +966,7 @@ async function toggleMic(){
 }
 function setMicUI(){
   $('mic').setAttribute('aria-pressed',!!mic);
-  $('micLbl').textContent=mic?'Hört zu':'App hört zu';
+  $('micLbl').textContent=mic?'Hört zu':'Mikrofon';
   $('sens').hidden=!mic;
 }
 function yinPitch(buf,sr){
@@ -1073,7 +1083,7 @@ document.querySelectorAll('#tempo button').forEach(b=>b.onclick=()=>{
   updBpm();
 });
 $('wait').onclick=e=>{
-  waitMode=!waitMode; e.currentTarget.setAttribute('aria-pressed',waitMode); $('waitLbl').textContent=waitMode?'An':'Aus';
+  waitMode=!waitMode; e.currentTarget.setAttribute('aria-pressed',waitMode);
   if(!waitMode&&waiting){ waiting=false; startOffset=pos; startCtx=ac.currentTime; }
   if(playing){ stopScheduled(); resyncFrom(pos); }
 };
