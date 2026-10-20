@@ -3,9 +3,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Tastenfall"></head><body>
 <title>Tastenfall</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Lexend:wght@400;500;600&display=swap">
 <style>
+/* Schriften liegen im Ordner fonts/ (SIL Open Font License): Es wird nichts von fremden Servern geladen */
+@font-face{font-family:"Unbounded";font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/unbounded.woff2) format("woff2")}
+@font-face{font-family:"Lexend";font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/lexend.woff2) format("woff2")}
 /* Layout: two screens — a song library (cards with a mini piano-roll of each song, filtered by level) and a one-screen player (settings strip, falling-notes stage, round transport) */
 :root{
   --bg:#0c0a1d;
@@ -46,7 +47,7 @@ button{font-family:inherit}
 .logo i:nth-child(2){height:22px;background:var(--accent)}
 .logo i:nth-child(3){height:16px;background:var(--lh)}
 
-.btn{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--fg);font:500 14.5px/1.1 var(--font-body);padding:10px 16px;min-height:44px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;user-select:none;box-sizing:border-box;transition:background .15s,border-color .15s}
+.btn{text-decoration:none;appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--fg);font:500 14.5px/1.1 var(--font-body);padding:10px 16px;min-height:44px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;user-select:none;box-sizing:border-box;transition:background .15s,border-color .15s}
 .btn:hover{background:var(--surface-2)}
 .btn svg{width:16px;height:16px;fill:currentColor;flex:none}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
@@ -201,7 +202,10 @@ kbd{font-family:var(--font-body);font-size:12px;border:1px solid var(--border);b
   <div class="lib-in">
     <div class="lib-head">
       <div class="brand"><span class="logo"><i></i><i></i><i></i></span>Tastenfall</div>
-      <button class="btn" id="helpBtn1">So geht's</button>
+      <div class="row">
+        <a class="btn" id="newWin" href="" target="_blank" rel="noopener" hidden>In neuem Fenster öffnen</a>
+        <button class="btn" id="helpBtn1">So geht's</button>
+      </div>
     </div>
     <div class="hero">
       <h1>Welches Lied willst du <em>spielen?</em></h1>
@@ -603,7 +607,7 @@ const SONGS=[
   {name:'Bella Ciao',origin:'Italienisches Volkslied · bekannt aus „Haus des Geldes“',level:2,hint:'Zweiertakt, Achtel und kurze Pausen',build:()=>fromSpec(112,[
     RH([...bcA,...bcA]),
     LH([...bcL,...bcL])],{meter:2})},
-  {name:'Tetris-Melodie',origin:'Russisches Volkslied „Korobeiniki“',level:2,hint:'Schnelle Achtel – erst langsam üben',build:()=>fromSpec(132,[
+  {name:'Korobeiniki',origin:'Russisches Volkslied · bekannt aus einem Computerspiel',level:2,hint:'Schnelle Achtel – erst langsam üben',build:()=>fromSpec(132,[
     RH([...kbA,...kbB,...kbA,...kbB]),
     LH([...kbLA,...kbLB,...kbLA,...kbLB])])},
   {name:'In der Halle des Bergkönigs',origin:'Edvard Grieg · aus „Peer Gynt“',level:2,hint:'Gleichmäßige Viertel, schwarze Tasten',build:()=>fromSpec(108,[
@@ -626,6 +630,7 @@ const SONGS=[
 /* ---------- Bestwerte ---------- */
 let best={};
 try{ best=JSON.parse(localStorage.getItem('tastenfall-best')||'{}')||{}; }catch(e){ best={}; }
+if(best['Tetris-Melodie']&&!best['Korobeiniki']) best['Korobeiniki']=best['Tetris-Melodie'];   // alter Liedname
 function saveBest(name,stars){
   if((best[name]||0)>=stars) return;
   best[name]=stars;
@@ -946,6 +951,8 @@ try{
 /* ---------- Mikrofon: die App hört dem echten Klavier zu ---------- */
 let mic=null, sens=1;
 let inFrame=false; try{ inFrame=window.self!==window.top; }catch(e){ inFrame=true; }
+// Eingebettet (z. B. auf der Schul-Homepage): Knopf zum Öffnen im eigenen Fenster, dort gehen Mikrofon und Vollbild immer
+if(inFrame){ $('newWin').href=location.href; $('newWin').hidden=false; }
 async function toggleMic(){
   if(mic){ mic.stream.getTracks().forEach(t=>t.stop()); mic=null; setMicUI(); return; }
   ensureAudio();
@@ -959,7 +966,7 @@ async function toggleMic(){
     notice('Die App hört zu. Stell das Gerät nah ans Klavier. Spiel einen Ton: Die Taste unten wird hellblau.');
   }catch(e){
     notice(inFrame
-      ? 'In dieser Ansicht darf die App das Mikrofon nicht benutzen. So klappt es: Öffne die App-Datei „Tastenfall.html“ im Browser (Chrome, Edge oder Firefox). Drück dort auf „App hört zu“ und dann auf „Erlauben“.'
+      ? 'Hier darf die App das Mikrofon nicht benutzen. So klappt es: Geh zurück zu „Alle Lieder“ und tippe oben auf „In neuem Fenster öffnen“. Drück dort auf „Mikrofon“ und dann auf „Erlauben“.'
       : 'Die App darf das Mikrofon nicht benutzen. Klick oben in der Adresszeile auf das Schloss-Symbol und erlaube das Mikrofon. Dann lade die Seite neu.');
   }
   setMicUI();
